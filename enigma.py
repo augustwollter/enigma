@@ -33,7 +33,7 @@ def rotation_matrix(rot):
     """
     Creates a rotation matrix (26,26) that shifts columns forwards or back
     """
-    rot *= -1
+    #rot *= -1
     matrix = np.zeros((26,26), dtype = "int")
     indeces = (np.arange(26) + rot) % 26
     matrix[np.arange(26),indeces] = 1
@@ -80,6 +80,8 @@ class Message():
 
     def transform(self, t):
         self.matrix = np.matmul(t.getTransform(), self.matrix)
+    def inverseTransform(self, t):
+        self.matrix = np.matmul(t.getInverseTransform(), self.matrix)
     def split(self):
         split = np.hsplit(self.matrix, self.matrix.shape[1])
         return split
@@ -107,27 +109,31 @@ class Rotor(Transform):
         self.permutation_matrix = permutation_matrix
         self.pos = pos
         self.notch = notch
+        
     def getTransform(self):
         matrix = np.matmul(rotation_matrix(self.pos), self.permutation_matrix)
-
-        if (self.pos == self.notch):
-            print("Next rotor is advanced")
-
         return matrix
+
+    def getInverseTransform(self):
+        return self.getTransform().T
+    
     def __repr__(self):
         return f"Rotor at pos:{self.pos} and notch:{self.notch}"
     
     def step(self):
         self.pos = (self.pos + 1) % 26
 
-    # Implement stepping
+    # Implement stepping and advancing
+    # if (self.pos == self.notch):
+    #      print("Next rotor is advanced")
+
 
 class Reflector(Transform):
     def __init__(self, list_of_cycles):
         self.list_of_cycles = list_of_cycles
         self.matrix = list_cyclic_permutation_matrix(list_of_cycles)
     def getTransform(self):
-        return self.matrix, False # Never steps
+        return self.matrix # Never steps
 
     def getListOfCycles(self):
         return self.list_of_cycles
@@ -142,8 +148,15 @@ class Machine():
         return str(self.components)
     
     
-    #def transformMessage(self, message):
-        
+    def transformMessage(self, message):
+        for r in self.rotors:
+            message.transform(r)
+            
+        message.transform(self.reflector)
+
+        for r in reversed(self.rotors):
+            message.inverseTransform(r)
+        return message
         # Transform through rotors one way
         # Reflect
         # Back through rotors
